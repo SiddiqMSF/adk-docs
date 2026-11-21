@@ -1257,6 +1257,58 @@ ADK provides concrete implementations of the `BaseArtifactService` interface, of
         ```kotlin
         --8<-- "examples/kotlin/snippets/artifacts/ArtifactExamples.kt:gcs_service"
         ```
+
+### FsspecArtifactService
+
+<div class="language-support-tag">
+  <span class="lst-supported">Supported in ADK</span><span class="lst-python">Python v2.15.0</span><span class="lst-preview">Experimental</span>
+</div>
+
+!!! example "Experimental"
+    `FsspecArtifactService` is experimental, and its API or behavior may change
+    in future releases. It is turned off by default: creating one raises
+    `RuntimeError: Feature FSSPEC_ARTIFACT_SERVICE is not enabled.` unless you
+    set the `ADK_ENABLE_FSSPEC_ARTIFACT_SERVICE` environment variable to `1`.
+
+*   **Storage Mechanism:** Stores artifacts on any [fsspec](https://filesystem-spec.readthedocs.io/)-compatible filesystem. The protocol of `base_url` selects the backend, for example Amazon S3 (`s3://`), Google Cloud Storage (`gs://`), local files (`file://`), or memory (`memory://`).
+*   **Object Naming Convention:** Uses the same layout as `GcsArtifactService`: `{base_url}/{app_name}/{user_id}/{session_id}/{filename}/{version}`, with `user:` files stored under `{base_url}/{app_name}/{user_id}/user/` instead of a session folder.
+*   **Key Features:**
+    *   **One service, many backends:** Switch storage by changing `base_url`, without changing your agent code.
+    *   **Versioning:** Stores each version as a separate file. `save_artifact` assigns the next version number, starting at `0`.
+    *   **Persistence:** Artifacts on cloud storage or `file://` persist across application restarts. Artifacts on `memory://` are lost when the process ends.
+    *   **Backend Configuration:** Extra keyword arguments are passed to fsspec (for example, S3 credentials or endpoint settings). You can also pass a pre-configured synchronous filesystem with the `fs` argument.
+*   **Limitations:**
+    *   `file://` and `memory://` can't store object metadata, so they accept only `inline_data` artifacts. Saving a text part, a `file_data` reference, or `custom_metadata` raises `InputValidationError`. On load, the MIME type is guessed from the filename, and `inline_data.display_name` is not kept.
+    *   On S3, `custom_metadata` keys come back in lowercase with `_` replaced by `-`.
+    *   It can't be selected with the `--artifact_service_uri` option of the `adk` CLI. Create it in code and pass it to the `Runner`.
+*   **Use Cases:**
+    *   Persistent artifact storage outside Google Cloud, such as Amazon S3.
+    *   Local development that needs artifacts to survive restarts (`file://`).
+*   **Instantiation:**
+
+    Install the `fsspec` extra and the fsspec backend for your storage protocol, such as `s3fs` for `s3://` or `gcsfs` for `gs://`. Neither backend is installed with `google-adk`.
+
+    ```shell
+    pip install "google-adk[fsspec]" s3fs
+    ```
+
+    === "Python"
+
+        ```python
+        import os
+
+        from google.adk.integrations.fsspec import FsspecArtifactService
+
+        # FsspecArtifactService is experimental and turned off by default.
+        os.environ["ADK_ENABLE_FSSPEC_ARTIFACT_SERVICE"] = "1"
+
+        # Store artifacts in an S3 bucket. Replace with your bucket and prefix.
+        fsspec_service_py = FsspecArtifactService(base_url="s3://my-bucket/artifacts")
+
+        # Then pass it to the Runner
+        # runner = Runner(..., artifact_service=fsspec_service_py)
+        ```
+
 Choosing the appropriate `ArtifactService` implementation depends on your application's requirements for data persistence, scalability, and operational environment.
 
 ## Best Practices
